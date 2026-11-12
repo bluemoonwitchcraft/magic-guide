@@ -17,7 +17,7 @@ function resolve(id, year) {
   const x = { ...p, ...yd, S, m, year: yr, years: yrs, forms: yd.forms || p.forms, kind: yd.kind || (p.mode === 'energy' ? 'energy' : null) || SERIES_KIND[S.kind] || 'wish' };
   x.K = KINDS[x.kind];
   x.cat = p.cat || (S.kind === 'cat' && p.series !== '不屬任何種類' ? p.series : null);
-  x.sub = x.kind === 'wish' ? p.series : x.kind === 'goddess' ? x.group : x.kind === 'energy' ? (p.mode ? p.series : p.seriesName ? '能量補充' : '季節魔法配方') : (p.cat || '');
+  x.sub = x.kind === 'wish' ? p.series : x.kind === 'goddess' ? x.group : x.kind === 'energy' ? (p.mode ? p.series : '') : (p.cat || '');
   x.sameList = x.kind === 'wish' && !S.noSameRule ? PRODUCTS.filter(q => q.series === p.series && q.forms.includes('油') && q.id !== p.id).map(q => q.name) : [];
   x.short = yd.short || (p.id === SPECIAL.libation ? '禱告的祭酒' : p.name.split('．')[0]);
   return x;
@@ -340,7 +340,7 @@ function viewKind(k) {
   let groups;
   if (k === 'wish') groups = K.series.map(s => [s, ps.filter(p => p.series === s)]);
   else if (k === 'goddess') groups = GODDESS_GROUPS.map(g => [g, ps.filter(p => p.group === g)]);
-  else if (k === 'energy') groups = [['季節魔法配方', ps.filter(p => !p.seriesName)], ['能量補充', ps.filter(p => p.seriesName)]];
+  else if (k === 'energy') groups = [['', ps]];
   else if (k === 'powder' || k === 'sachet' || k === 'candle') { const cs = [...new Set(ps.map(p => p.cat || '其他'))]; groups = cs.map(c => [c, ps.filter(p => (p.cat || '其他') === c)]); }
   else groups = [['', ps]];
   return `<h1 class="ptitle">${K.name}</h1><p class="lead">${esc(K.sub)}</p>
@@ -358,7 +358,7 @@ function viewTopic(t) {
     return `<h1 class="ptitle">啟動方式</h1><p class="lead">不同種類的開始方式不一樣。每一類都可以在步驟中選擇你手上的產品，直接查看那一款的觀想與咒語。</p>
     ${chipsNav([...KIND_ORDER.map(k => ['a-' + k, KINDS[k].name]), ['faq', '常見問題']])}
     <section class="topic-s" id="a-wish"><h2>願望型<small>第一次使用前施咒啟動一次</small></h2><div class="notice">請避開月空時間（豐盛生活、人緣和合另避開日／月食），並由使用者本人啟動。</div>${stepsWish(null, '油')}<p class="aside">噴霧的做法相同，只是取下的是噴頭。</p></section>
-    <section class="topic-s" id="a-energy"><h2>能量補充型<small>第一次使用前吹氣連結</small></h2>${stepsEnergy(null, '油')}</section>
+    <section class="topic-s" id="a-energy"><h2>季節魔法配方<small>第一次使用前吹氣連結</small></h2>${stepsEnergy(null, '油')}</section>
     <section class="topic-s" id="a-goddess"><h2>女神聖化系列<small>不須啟動，每次使用都這樣做</small></h2>${stepsGoddess(null, '油')}</section>
     <section class="topic-s" id="a-star"><h2>星光行運<small>不須啟動，每次使用都這樣做</small></h2>${stepsStar(null)}</section>
     <section class="topic-s" id="a-powder"><h2>魔法香粉<small>不須啟動，每次使用都這樣做</small></h2>${stepsPowder(null)}</section>
@@ -368,8 +368,8 @@ function viewTopic(t) {
   if (t === 'usage') {
     return `<h1 class="ptitle">使用方式</h1><p class="lead">依劑型查看共通用法。各款的專屬用法在產品頁。</p>
     ${chipsNav([['u-oil', '魔法油'], ['u-spray', '魔法噴霧'], ['u-powder', '魔法香粉'], ['u-sachet', '魔法香包'], ['u-candle', '魔法蠟燭'], ['faq', '常見問題']])}
-    <section class="topic-s" id="u-oil"><h2>魔法油</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['油'][0])}</dd><dt>能量補充型</dt><dd>${esc(GENERIC_USE.energy['油'][0])}</dd><dt>女神聖化</dt><dd>滴在需要之處，或滴入無香蠟燭中點燃；每次都呼喚女神、念祈禱文。</dd><dt>星光行運</dt><dd>滴在需要加持的地方或物品上，每次都觀想並念祈禱文。</dd></dl><p class="aside">請勿使用水氧機等擴香機器，可以水燈薰香。</p></section>
-    <section class="topic-s" id="u-spray"><h2>魔法噴霧</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['噴霧'][0])}</dd><dt>能量補充型</dt><dd>${esc(GENERIC_USE.energy['噴霧'][0])}</dd><dt>女神聖化</dt><dd>噴灑在需要祝福的空間或區域周圍，再伸出雙掌迎接女神能量。</dd></dl><p class="aside">噴霧不可加入蠟燭；搭配蠟燭時先噴灑空間再點燭，不要對著火焰噴。</p></section>
+    <section class="topic-s" id="u-oil"><h2>魔法油</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['油'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['油'][0])}</dd><dt>女神聖化</dt><dd>滴在需要之處，或滴入無香蠟燭中點燃；每次都呼喚女神、念祈禱文。</dd><dt>星光行運</dt><dd>滴在需要加持的地方或物品上，每次都觀想並念祈禱文。</dd></dl><p class="aside">請勿使用水氧機等擴香機器，可以水燈薰香。</p></section>
+    <section class="topic-s" id="u-spray"><h2>魔法噴霧</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['噴霧'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['噴霧'][0])}</dd><dt>女神聖化</dt><dd>噴灑在需要祝福的空間或區域周圍，再伸出雙掌迎接女神能量。</dd></dl><p class="aside">噴霧不可加入蠟燭；搭配蠟燭時先噴灑空間再點燭，不要對著火焰噴。</p></section>
     <section class="topic-s" id="u-powder"><h2>魔法香粉</h2>${stepsPowder(null)}</section>
     <section class="topic-s" id="u-sachet"><h2>魔法香包</h2>${ul(MODES.sachet.usage)}</section>
     <section class="topic-s" id="u-candle"><h2>魔法蠟燭</h2>${ul([...KINDS.candle.summary.slice(0, 1), ...MODES.candle.notes])}${fold('殘蠟怎麼辦？', `<p>${esc(MODES.candle.tips[0].b)}</p>`)}</section>${faq('usage')}`;
@@ -401,7 +401,7 @@ function viewTopic(t) {
       <button class="calbtn ghost" data-copy="${ICAL_URL}">複製 iCal 網址（iPhone 行事曆可訂閱）</button><span class="copied" hidden>已複製</span>
       <small>需要網路</small></div>
     ${moonStatus()}
-    <div class="two"><div class="no"><div class="lbl">月空時請避開</div>${ul(['願望型魔法油／噴霧的啟動', '能量補充型的吹氣連結', '蠟燭魔法許願、魔法蠟燭的許願或第一次施咒', '新月、滿月儀式等有目的的施術'])}</div>
+    <div class="two"><div class="no"><div class="lbl">月空時請避開</div>${ul(['願望型魔法油／噴霧的啟動', '季節魔法配方的吹氣連結', '蠟燭魔法許願、魔法蠟燭的許願或第一次施咒', '新月、滿月儀式等有目的的施術'])}</div>
     <div class="yes"><div class="lbl">月空時也可以</div>${ul(['已啟動產品的日常使用', '女神聖化系列、星光行運', '魔法香粉、魔法香包', '單純點燃蠟燭、滴入魔法油釋放能量（不許願）'])}</div></div>
     <h2>離線版月空時間表<small>不需要網路；以台灣時間（UTC+8）顯示，香港、澳門、馬來西亞、中國相同</small></h2><div class="chipnav">${months.map(m => `<button data-mon="${m}" class="${m === sel ? 'on' : ''}">${+m.slice(0, 4) !== pn.y ? m.slice(0, 4) + '/' : ''}${+m.slice(5)} 月</button>`).join('')}</div>
     <ul class="voclist">${rows || '<li class="muted">這個月的月空時間都已經過了。</li>'}</ul>
