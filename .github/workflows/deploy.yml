@@ -1,0 +1,38 @@
+name: 更新手冊
+
+on:
+  workflow_dispatch:      # 在 GitHub「Actions」頁按「Run workflow」
+  push:
+    branches: [main]      # 程式有更新時也會自動重新發布
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 讀取 Google Sheet 並產生網站
+        run: node tools/build.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
