@@ -10,14 +10,14 @@ const CJK = /^[\s「『（(]*[\u3400-\u9fff]/;
 function resolve(id, year) {
   const p = byId[id]; if (!p) return null;
   const yrs = p.years ? Object.keys(p.years) : null;
-  const yr = yrs ? (year && p.years[year] ? year : yrs.find(y => p.years[y].oneLine) || yrs[0]) : null;
+  const yr = yrs ? (year && p.years[year] ? year : [...yrs].reverse().find(y => p.years[y].oneLine) || yrs[yrs.length - 1]) : null;
   const yd = yr ? p.years[yr] : {};
   const S = yd.kind === 'goddess' ? SERIES['女神聖化'] : (SERIES[p.series] || {});
-  const m = MODES[S.mode] || MODES.wish;
-  const x = { ...p, ...yd, S, m, year: yr, years: yrs, forms: yd.forms || p.forms, kind: yd.kind || SERIES_KIND[S.kind] || 'wish' };
+  const m = MODES[p.mode || S.mode] || MODES.wish;   // p.mode：歸在某系列、但用法依另一種模式（例：賢者之樹列在願望型，用法是吹氣連結）
+  const x = { ...p, ...yd, S, m, year: yr, years: yrs, forms: yd.forms || p.forms, kind: yd.kind || (p.mode === 'energy' ? 'energy' : null) || SERIES_KIND[S.kind] || 'wish' };
   x.K = KINDS[x.kind];
   x.cat = p.cat || (S.kind === 'cat' && p.series !== '不屬任何種類' ? p.series : null);
-  x.sub = x.kind === 'wish' ? p.series : x.kind === 'goddess' ? x.group : x.kind === 'energy' ? (p.seriesName ? '能量補充' : '季節魔法配方') : (p.cat || '');
+  x.sub = x.kind === 'wish' ? p.series : x.kind === 'goddess' ? x.group : x.kind === 'energy' ? (p.mode ? p.series : p.seriesName ? '能量補充' : '季節魔法配方') : (p.cat || '');
   x.sameList = x.kind === 'wish' && !S.noSameRule ? PRODUCTS.filter(q => q.series === p.series && q.forms.includes('油') && q.id !== p.id).map(q => q.name) : [];
   x.short = yd.short || (p.id === SPECIAL.libation ? '禱告的祭酒' : p.name.split('．')[0]);
   return x;
@@ -60,7 +60,8 @@ function lookupResult(id) {
   else if (x.kind === 'goddess') h = (x.color ? visualBox(`${x.short}${x.color}的能量降臨在雙掌之中。`) : '') + spellBox(x.prayer, '女神祈禱文', '中文或英文擇一');
   else if (x.kind === 'star') h = `<div class="vis"><div class="lbl">心中觀想</div>${astroBox(x.id)}</div>` + spellBox(x.prayer, '祈禱文', '中文或英文擇一');
   else h = visualBox(x.visual) + spellBox(x.prayer, x.kind === 'powder' ? '咒語' : '祈禱文', '中文或英文擇一');
-  if (!x.visual && !x.spell && !x.prayer && !x.color && !STAR_SIGNS[x.id]) h = pendingBox('這一款的觀想與咒語整理中，請先參考紙本說明書。');
+  if (x.kind === 'energy') h = `<p class="aside">這一款不需施咒：第一次使用前，心中想著「將所有祝福放入${x.forms.includes('噴霧') ? '油／噴霧' : '油'}裡」，在瓶口吹一口長氣連結即可。</p>`;
+  else if (!x.visual && !x.spell && !x.prayer && !x.color && !STAR_SIGNS[x.id]) h = pendingBox('這一款的觀想與咒語整理中，請先參考紙本說明書。');
   return `<div class="lk-name">${esc(x.name)}</div>${h}<a class="toollink" href="#p-${id}">到${esc(x.short)}的產品頁 ›</a>`;
 }
 function steps(list) {
@@ -68,7 +69,7 @@ function steps(list) {
 }
 function card(id) {
   const x = resolve(id);
-  return `<a class="card" href="#p-${id}"><span class="card-name">${STAR_SIGNS[id] ? `<span class="mini">${STAR_SIGNS[id].map(k => glyph(k, 22)).join('')}</span>` : ''}${esc(x.name)}${x.isNew ? '<span class="new">NEW</span>' : ''}</span><span class="card-sub">${x.forms.join('／')}${x.years ? `・${x.years.join('／')}` : ''}</span></a>`;
+  return `<a class="card" href="#p-${id}"><span class="card-name">${STAR_SIGNS[id] ? `<span class="mini">${STAR_SIGNS[id].map(k => glyph(k, 22)).join('')}</span>` : ''}${esc(x.name)}${x.isNew ? '<span class="new">NEW</span>' : ''}</span><span class="card-sub">${(x.years ? byId[id].forms : x.forms).join('／')}${x.years ? `・${x.years.join('／')}` : ''}</span></a>`;
 }
 
 // ───────── 各種類的步驟（同一份模板供產品頁與「啟動方式」頁共用） ─────────
@@ -205,10 +206,11 @@ const TABS = {
 function viewProduct(id) {
   const x = resolve(id, state.year[id]); if (!x) return '<p>找不到這個產品。</p>';
   const form = formOf(x), tabs = TABS[x.kind], tab = tabs.some(t => t[0] === state.tab[id]) ? state.tab[id] : 'first';
-  let h = `<div class="phead"><div class="crumb"><a href="#k-${x.kind}">${x.K.name}</a>${x.sub ? ` ／ <a href="#k-${x.kind}" data-scroll="g-${esc(x.sub)}">${esc(x.sub)}</a>` : ''}</div>
+  const lk = x.mode ? Object.keys(KINDS).find(k => KINDS[k].series.includes(x.series)) : x.kind;   // 列在哪一類（賢者之樹：願望型）
+  let h = `<div class="phead"><div class="crumb"><a href="#k-${lk}">${KINDS[lk].name}</a>${x.sub ? ` ／ <a href="#k-${lk}" data-scroll="g-${esc(x.sub)}">${esc(x.sub)}</a>` : ''}</div>
     <div class="ptop"><div><h1 class="ptitle">${esc(x.name)}</h1>${x.en ? `<div class="en">${esc(x.en)}</div>` : ''}</div>
     ${x.forms.length > 1 ? `<div class="seg">${x.forms.map(f => `<button data-form="${f}" class="${f === form ? 'on' : ''}">${f}</button>`).join('')}</div>` : ''}</div>`;
-  if (x.years) h += `<div class="seg yr">${x.years.map(y => `<button data-year="${y}" class="${y === x.year ? 'on' : ''}">${y}</button>`).join('')}</div>`;
+  if (x.years) h += `<div class="yrrow"><div class="seg yr">${x.years.map(y => `<button data-year="${y}" class="${y === x.year ? 'on' : ''}">${y}</button>`).join('')}</div>${x.forms.length === 1 ? `<span class="yrform">${x.year} 年為${x.forms[0] === '油' ? '魔法油' : '魔法噴霧'}</span>` : ''}</div>`;
   h += x.oneLine ? `<p class="oneline">${esc(x.oneLine)}</p>` : `<p class="oneline muted">${esc(x.S.intro || '')}</p>`;
   if (x.oracle) h += `<blockquote class="oracle">神諭：「${esc(x.oracle)}」</blockquote>`;
   const facts = [['適合誰', x.recommend], ['主要功能', x.func], [x.kind === 'star' ? '' : '建議時機', x.kind === 'star' ? '' : x.timing]].filter(f => f[0] && f[1]);
