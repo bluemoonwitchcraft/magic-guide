@@ -47,7 +47,19 @@
         case 'formStr': return byForm(v, false);
         case 'tips': return lines(v).map(s => { const i = s.indexOf('：'); return i < 0 ? { t: s, b: '' } : { t: s.slice(0, i), b: s.slice(i + 1) }; });
         case 'ids': return lines(v.replace(/[、，,]/g, '\n')).map(n => { const id = base[n] ? n : nameToId[n]; if (!id) errs.push(`${where}：找不到產品「${n}」`); return id; }).filter(Boolean);
-        case 'videos': return lines(v).map(s => { const [at, yt, ...t] = s.split('｜'); return { at: at.trim(), yt: yt.trim(), title: t.join('｜').trim() }; });
+        case 'videos': return lines(v).map(s => {
+          // 位置｜YouTube 網址｜標題｜適用劑型（劑型可省略；「同類」共用的影片一定要寫）
+          const f = s.split(/[｜|]/).map(z => z.trim()), a = f[0], y = f[1], rest = f.slice(2);
+          if (!y) throw new Error('影片每行的寫法是「位置｜YouTube 網址｜標題｜適用劑型」，例如「同類啟動｜https://youtu.be/xxxxxxxxxxx｜如何啟動願望型魔法油｜油」');
+          const share = /^同類/.test(a), at = { '啟動': 'activation', '使用': 'usage', '置頂': 'top' }[a.replace(/^同類/, '')] || a.replace(/^同類/, '');
+          if (!['activation', 'usage', 'top'].includes(at)) throw new Error(`影片位置「${a}」不認得（可用：啟動、使用、置頂；前面加「同類」表示同一種類的產品共用，例如「同類啟動」）`);
+          const m = y.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/), yt = m ? m[1] : /^[\w-]{11}$/.test(y) ? y : null;
+          if (!yt) throw new Error(`看不懂這個 YouTube 網址：「${y}」`);
+          let forms = null; const last = rest[rest.length - 1] || '';
+          if (/^(油|噴霧|香粉|香包|蠟燭)([／/、,，\s]+(油|噴霧|香粉|香包|蠟燭))*$/.test(last)) { forms = last.split(/[／/、,，\s]+/); rest.pop(); }
+          if (share && !forms) throw new Error(`「${a}」是同類共用的影片，請在最後寫上適用的劑型，例如「｜油」或「｜油／噴霧」（油的示範不會自動當成噴霧的示範）`);
+          const o = { at, yt, title: rest.join('｜') || '影片示範' }; if (share) o.share = true; if (forms) o.forms = forms; return o;
+        });
       }
     };
     rows.slice(1).forEach((r, i) => {
