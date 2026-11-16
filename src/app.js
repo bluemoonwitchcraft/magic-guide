@@ -28,7 +28,25 @@ const formOf = x => x.forms.includes(state.form[x.id]) ? state.form[x.id] : x.fo
 const ul = (arr, cls = 'bul') => `<ul class="${cls}">${arr.map(s => `<li>${esc(s)}</li>`).join('')}</ul>`;
 function fold(title, inner, open) { return `<details class="fold"${open ? ' open' : ''}><summary>${esc(title)}</summary><div>${inner}</div></details>`; }
 function link(id) { const p = byId[id]; return p ? `<a href="#p-${id}" class="plink">${esc(p.name)}</a>` : esc(id); }
-function video(v) { return `<a class="ext" href="https://www.youtube.com/watch?v=${v.yt}" target="_blank" rel="noopener">▶ ${esc(v.title)}<small>需要網路</small></a>`; }
+// 影片：精簡播放卡，點了才在原位置載入 YouTube 播放器（不自動播放、不離開手冊）；保留外開連結備用。
+// share＝同一種類共用；forms＝適用劑型（沒寫＝這一款的所有劑型）。離線或縮圖載不到時，文字步驟不受影響。
+const VID_AT = { activation: '觀看啟動示範', top: '觀看影片介紹', usage: '觀看使用示範' };
+function video(v, x) {
+  const yt = esc(v.yt), scope = v.forms && v.share ? `（${v.forms.map(f => '魔法' + f).join('／')}）` : '';
+  return `<div class="vcard"><button class="vplay" type="button" data-play="${yt}" data-title="${esc(v.title)}" aria-label="播放影片：${esc(v.title)}"><span class="vth"><img src="https://i.ytimg.com/vi/${yt}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()"><i></i></span><span class="vtx"><b>${VID_AT[v.at] || '觀看影片'}${scope}</b><span>${esc(v.title)}</span><small>在本頁播放，不需離開手冊</small></span></button>
+    <div class="vbot"><span>需要網路</span><a href="https://www.youtube.com/watch?v=${yt}" target="_blank" rel="noopener">到 YouTube 觀看 ↗</a></div>${x && v.from !== x.id ? '<div class="vnote">示範共通步驟；這一款的觀想與咒語請依下方說明。</div>' : ''}</div>`;
+}
+// 全部影片：每個年份都收（年份專屬影片不漏），同一支影片在同一種類只列一次
+const ALL_VIDS = [];
+PRODUCTS.forEach(p => (p.years ? Object.keys(p.years) : [null]).forEach(y => { const x = resolve(p.id, y);
+  (x.videos || []).forEach(v => { if (!ALL_VIDS.some(o => o.yt === v.yt && o.kind === x.kind)) ALL_VIDS.push({ ...v, kind: x.kind, from: p.id }); }); }));
+const okForm = (v, form) => !v.forms || !form || v.forms.includes(form);
+const uniq = l => { const seen = new Set(); return l.filter(v => !seen.has(v.yt) && seen.add(v.yt)); };
+function vidsFor(x, ats, form) {
+  const own = (x.videos || []).filter(v => ats.includes(v.at) && okForm(v, form)).map(v => ({ ...v, from: x.id }));
+  return uniq([...own, ...ALL_VIDS.filter(v => v.share && v.kind === x.kind && ats.includes(v.at) && okForm(v, form))]).map(v => video(v, x)).join('');
+}
+const kindVids = (kinds, ats, form) => uniq(ALL_VIDS.filter(v => v.share && kinds.includes(v.kind) && ats.includes(v.at) && okForm(v, form))).map(v => video(v)).join('');
 function pendingBox(t) { return `<div class="pend">${esc(t)}</div>`; }
 function glyph(k, size) {
   const g = GLYPHS[k]; if (!g) return '';
@@ -195,27 +213,22 @@ function pairBlock(x) {
 
 // ───────── 產品頁 ─────────
 const TABS = {
-  wish: [['first', '首次啟動'], ['daily', '日常使用與搭配'], ['info', '成分與保存']],
-  energy: [['first', '吹氣連結'], ['daily', '日常使用與搭配'], ['info', '成分與保存']],
-  goddess: [['first', '每次使用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
-  star: [['first', '每次使用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
-  powder: [['first', '每次使用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
-  sachet: [['first', '使用方式'], ['info', '成分與保存']],
-  candle: [['first', '使用方式'], ['daily', '搭配與注意'], ['info', '成分與保存']]
+  wish: [['first', '第一次怎麼用'], ['daily', '平常怎麼用'], ['info', '成分與保存']],
+  energy: [['first', '第一次怎麼用'], ['daily', '平常怎麼用'], ['info', '成分與保存']],
+  goddess: [['first', '每次怎麼用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
+  star: [['first', '每次怎麼用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
+  powder: [['first', '每次怎麼用'], ['daily', '搭配與注意'], ['info', '成分與保存']],
+  sachet: [['first', '怎麼用'], ['info', '成分與保存']],
+  candle: [['first', '怎麼用'], ['daily', '搭配與注意'], ['info', '成分與保存']]
 };
 function viewProduct(id) {
   const x = resolve(id, state.year[id]); if (!x) return '<p>找不到這個產品。</p>';
   const form = formOf(x), tabs = TABS[x.kind], tab = tabs.some(t => t[0] === state.tab[id]) ? state.tab[id] : 'first';
   const lk = x.mode ? Object.keys(KINDS).find(k => KINDS[k].series.includes(x.series)) : x.kind;   // 列在哪一類（賢者之樹：願望型）
   let h = `<div class="phead"><div class="crumb"><a href="#k-${lk}">${KINDS[lk].name}</a>${x.sub ? ` ／ <a href="#k-${lk}" data-scroll="g-${esc(x.sub)}">${esc(x.sub)}</a>` : ''}</div>
-    <div class="ptop"><div><h1 class="ptitle">${esc(x.name)}</h1>${x.en ? `<div class="en">${esc(x.en)}</div>` : ''}</div>
-    ${x.forms.length > 1 ? `<div class="seg">${x.forms.map(f => `<button data-form="${f}" class="${f === form ? 'on' : ''}">${f}</button>`).join('')}</div>` : ''}</div>`;
-  if (x.years) h += `<div class="yrrow"><div class="seg yr">${x.years.map(y => `<button data-year="${y}" class="${y === x.year ? 'on' : ''}">${y}</button>`).join('')}</div>${x.forms.length === 1 ? `<span class="yrform">${x.year} 年為${x.forms[0] === '油' ? '魔法油' : '魔法噴霧'}</span>` : ''}</div>`;
-  h += x.oneLine ? `<p class="oneline">${esc(x.oneLine)}</p>` : `<p class="oneline muted">${esc(x.S.intro || '')}</p>`;
-  if (x.oracle) h += `<blockquote class="oracle">神諭：「${esc(x.oracle)}」</blockquote>`;
-  const facts = [['適合誰', x.recommend], ['主要功能', x.func], [x.kind === 'star' ? '' : '建議時機', x.kind === 'star' ? '' : x.timing]].filter(f => f[0] && f[1]);
-  if (facts.length) h += `<dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
-  if (x.blog) h += `<a class="bloglink" href="${esc(x.blog)}" target="_blank" rel="noopener">看思逸老師部落格的完整介紹 ↗</a>`;
+    <h1 class="ptitle">${esc(x.name)}</h1>${x.en ? `<div class="en">${esc(x.en)}</div>` : ''}`;
+  if (x.forms.length > 1) h += `<div class="formrow"><span id="formlbl">我手上的是</span><div class="seg" role="group" aria-labelledby="formlbl">${x.forms.map(f => `<button data-form="${f}" class="${f === form ? 'on' : ''}" aria-pressed="${f === form}">${f === '油' ? '魔法油' : f}</button>`).join('')}</div></div>`;
+  if (x.years) h += `<div class="yrrow"><div class="seg yr" role="group" aria-label="年份">${x.years.map(y => `<button data-year="${y}" class="${y === x.year ? 'on' : ''}" aria-pressed="${y === x.year}">${y}</button>`).join('')}</div>${x.forms.length === 1 ? `<span class="yrform">${x.year} 年為${x.forms[0] === '油' ? '魔法油' : '魔法噴霧'}</span>` : ''}</div>`;
   h += `</div>`;
   if (x.years && !x.oneLine) return h + pendingBox(`${x.year} 年的說明整理中。`);
   h += `<div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${k === tab}">${t}</button>`).join('')}</div>`;
@@ -224,39 +237,39 @@ function viewProduct(id) {
 }
 function paneFirst(x, form) {
   let h = '';
-  const vids = (x.videos || []);
+  const V = vidsFor(x, ['activation', 'top'], form);
   if (x.kind === 'wish') {
     h += `<h2>跟著步驟，完成啟動<small>第一次使用前做一次即可，之後不必重做</small></h2>`;
     h += `<div class="notice">開始前：請避開月空時間${x.S.eclipse ? '及日／月食' : ''}，並由使用者本人啟動。<a href="#t-moon">看月空時間表 ›</a></div>${moonStatus(true)}`;
-    h += stepsWish(x, form);
+    h += V + stepsWish(x, form);
   } else if (x.kind === 'energy') {
-    h += `<h2>吹氣連結<small>第一次使用前做一次即可，不必念咒</small></h2><div class="notice">開始前：請避開月空時間。<a href="#t-moon">看月空時間表 ›</a></div>${moonStatus(true)}` + stepsEnergy(x, form);
+    h += `<h2>吹氣連結<small>第一次使用前做一次即可，不必念咒</small></h2><div class="notice">開始前：請避開月空時間。<a href="#t-moon">看月空時間表 ›</a></div>${moonStatus(true)}` + V + stepsEnergy(x, form);
   } else if (x.kind === 'goddess') {
-    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>` + stepsGoddess(x, form);
+    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>` + V + stepsGoddess(x, form);
   } else if (x.kind === 'star') {
-    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>${x.timing ? `<div class="notice">行運期間：${esc(x.timing)}</div>` : ''}` + stepsStar(x);
+    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>${x.timing ? `<div class="notice">行運期間：${esc(x.timing)}</div>` : ''}` + V + stepsStar(x);
   } else if (x.kind === 'powder') {
-    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>` + stepsPowder(x);
+    h += `<h2>每次使用都這樣做<small>不須啟動，月空時間也可以使用</small></h2>` + V + stepsPowder(x);
   } else if (x.kind === 'sachet') {
-    h += `<h2>不須啟動，取出就能用</h2>` + ul((x.usage && x.usage[form]) || x.m.usage) + `<p class="share">${esc(sharing(x, form))}</p>`;
+    h += `<h2>不須啟動，取出就能用</h2>` + V + ul((x.usage && x.usage[form]) || x.m.usage) + `<p class="share">${esc(sharing(x, form))}</p>`;
     if (x.spellOpt) h += spellBox(x.spellOpt, '灑淨時可以念的咒語', '自然魔法常用咒語');
     h += fold('注意事項', ul(otherNotes(x)));
   } else if (x.kind === 'candle') {
-    h += `<h2>使用方式</h2>${x.moonFree ? '' : moonStatus(true)}` + candleModes(x);
+    h += `<h2>使用方式</h2>${x.moonFree ? '' : moonStatus(true)}` + V + candleModes(x);
     if (x.usage && x.usage['蠟燭']) h += ul(x.usage['蠟燭']);
   }
-  vids.filter(v => v.at === 'activation' || v.at === 'top').forEach(v => h += video(v));
   if (TABS[x.kind].some(t => t[0] === 'daily')) h += `<button class="next" data-tab="daily">接著看${TABS[x.kind][1][1]} →</button>`;
   if (x.kind === 'wish') h += fold('忘記啟動、唸錯咒語或在月空啟動了？', '<p>在避開月空的時間，重新依步驟啟動一次即可。不需要每次使用都重新啟動。</p>');
   return h;
 }
 function paneDaily(x, form) {
   let h = '';
+  const U = vidsFor(x, ['usage'], form);
   if (x.kind === 'wish' || x.kind === 'energy') {
     const use = (x.usage && x.usage[form]) || GENERIC_USE[x.kind][form];
-    h += `<h2>${x.kind === 'wish' ? '啟動後，平常這樣用' : '連結後，平常這樣用'}<small>不必重新${x.kind === 'wish' ? '施咒啟動' : '吹氣'}</small></h2>${ul(use)}`;
+    h += `<h2>${x.kind === 'wish' ? '啟動後，平常這樣用' : '連結後，平常這樣用'}<small>不必重新${x.kind === 'wish' ? '施咒啟動' : '吹氣'}</small></h2>${ul(use)}` + U;
     if (!x.usage) h += `<p class="aside">這一款的專屬用法整理中，以上為同類產品的共通用法。</p>`;
-  }
+  } else h += U;
   const sh = sharing(x, form); if (sh && x.kind !== 'sachet') h += `<p class="share">${esc(sh)}</p>`;
   h += `<h2>搭配其他產品時</h2>${ul(pairRules(x, form), 'rules')}`;
   if (x.kind === 'wish' && form === '油' && x.S.sameTarget) h += fold('怎麼錯開使用對象？', ul(x.S.sameTarget));
@@ -264,12 +277,19 @@ function paneDaily(x, form) {
   h += `<a class="toollink" href="#check" data-addcheck="${x.id}">把${esc(x.short)}放進「這樣用搭不搭」 ›</a>`;
   const ex = extras(x); if (ex) h += fold('延伸用法', ex);
   const notes = otherNotes(x); if (notes.length) h += fold('其他注意事項', ul(notes));
-  (x.videos || []).filter(v => v.at === 'usage').forEach(v => h += video(v));
   if (x.id === 'mercurywind') h += mercuryBlock();
   return h;
 }
+function about(x) {
+  const facts = [['適合誰', x.recommend], ['主要功能', x.func], [x.kind === 'star' ? '' : '建議時機', x.kind === 'star' ? '' : x.timing]].filter(f => f[0] && f[1]);
+  let h = x.oneLine ? `<p class="oneline">${esc(x.oneLine)}</p>` : x.S.intro ? `<p class="oneline muted">${esc(x.S.intro)}</p>` : '';
+  if (x.oracle) h += `<blockquote class="oracle">神諭：「${esc(x.oracle)}」</blockquote>`;
+  if (facts.length) h += `<dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  if (x.blog) h += `<a class="bloglink" href="${esc(x.blog)}" target="_blank" rel="noopener">看思逸老師部落格的完整介紹 ↗</a>`;
+  return h ? `<h2>關於這一款</h2>` + h : '';
+}
 function paneInfo(x, form) {
-  let h = `<h2>配方<small>${esc(x.kind === 'candle' ? '魔法蠟燭' : '魔法' + form)}</small></h2>`;
+  let h = about(x) + `<h2>配方<small>${esc(x.kind === 'candle' ? '魔法蠟燭' : '魔法' + form)}</small></h2>`;
   const ing = x.ingredients && x.ingredients[form];
   h += ing ? `<dl class="ing">${ing.split('｜').map(s => { const [k, ...v] = s.split('：'); return v.length ? `<dt>${esc(k)}</dt><dd>${esc(v.join('：'))}</dd>` : `<dd class="full">${esc(s)}</dd>`; }).join('')}</dl>` : pendingBox('成分整理中。');
   if (x.specs) h += `<h2>規格</h2><dl class="ing">${x.specs.split('｜').map(s => { const [k, ...v] = s.split('：'); return `<dt>${esc(k)}</dt><dd>${esc(v.join('：'))}</dd>`; }).join('')}</dl>`;
@@ -284,6 +304,8 @@ function paneInfo(x, form) {
 const CAL_ID = 've3cjvibuusqup6r1fm2mkqrc0%40group.calendar.google.com';
 const CAL_ADD = `https://calendar.google.com/calendar/render?cid=${CAL_ID}`, ICAL_URL = `https://calendar.google.com/calendar/ical/${CAL_ID}/public/basic.ics`;
 const QA_URL = 'https://wp.me/P3UNVs-5K8', CAL_URL = 'https://calendar.google.com/calendar/embed?src=ve3cjvibuusqup6r1fm2mkqrc0%40group.calendar.google.com&ctz=Asia%2FTaipei';
+// 嵌入用：手機看「時間表」比較清楚，寬螢幕看月曆；客人可以用上方分頁自己切換
+const calEmbed = () => `${CAL_URL}&mode=${window.innerWidth < 620 ? 'AGENDA' : 'MONTH'}&showTitle=0&showPrint=0&showCalendars=0&showTz=0&hl=zh_TW`;
 const tp = s => new Date(s + ':00+08:00');
 const WD = '日一二三四五六';
 function tpParts(d) { const t = new Date(d.getTime() + 8 * 3600e3); return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate(), w: WD[t.getUTCDay()], hh: String(t.getUTCHours()).padStart(2, '0'), mm: String(t.getUTCMinutes()).padStart(2, '0') }; }
@@ -324,13 +346,32 @@ const TOPICS = [
   ['order', '使用順序', '先用哪一個？搭配的原則'], ['moon', '月空時間', '什麼要避開？什麼可以？'],
   ['storage', '保存方式', '怎麼存放？用多久？'], ['ingr', '成分查詢', '這瓶有哪些成分？']
 ];
+// 常用關鍵字：人工挑選的候選詞（有意義的詞才放），依「品名含這個詞的產品數」排序，取前 4 個；沒有產品的詞不顯示。
+// 這不是搜尋熱門度——手冊不記錄任何人的搜尋。要增減候選詞，改這一行即可。
+const KEYWORD_CANDIDATES = ['幸運', '豐盛', '光明', '黃金', '月光', '月神', '玫瑰', '守護'];
+function keywords() {
+  return KEYWORD_CANDIDATES.map((w, i) => [w, PRODUCTS.filter(p => p.name.includes(w)).length, i]).filter(k => k[1] > 0).sort((a, b) => b[1] - a[1] || a[2] - b[2]).slice(0, 4).map(k => k[0]);
+}
+const GUIDES = [['#t-activate', '啟動方式', '步驟與影片示範'], ['#t-usage', '使用方式', '日常用法與影片'], ['#t-order', '使用順序', '先用哪一個？搭配的原則'], ['#recipes', '搭配秘方', '老師推薦的組合']];
+function kindsBlock() {
+  return `<h2 class="sec">依種類找產品<small>不記得品名？從這裡找</small></h2><div class="kinds">${KIND_ORDER.map(k => `<a class="kind" href="#k-${k}"><b>${KINDS[k].name} ›</b><span>${KINDS[k].sub}</span></a>`).join('')}</div>`;
+}
+// 還是有問題：Email 與臉書粉專（FB_URL 留空時不顯示連結）
+const MAIL = 'info@bluemoonwitchcraft.com', FB_URL = 'https://www.facebook.com/BluemoonSEER';
+function contact() {
+  return `<section class="ask"><b>還是有問題？歡迎發問！</b><a href="mailto:${MAIL}"><span>寫 Email 給我們</span><small>${MAIL}</small></a>${FB_URL ? `<a href="${FB_URL}" target="_blank" rel="noopener"><span>到臉書粉專找奔狼小編 ↗</span><small>需要網路</small></a>` : `<div class="todo"><span>到臉書粉專找奔狼小編</span><small>粉專連結待補</small></div>`}</section>`;
+}
 function viewHome() {
-  return `<div class="lockup"><img class="ld" src="${BRAND.deer}" alt=""><img class="lw" src="${BRAND.word}" alt="青月巫作"></div><section class="hero"><p class="eyebrow">SEER × BLUE MOON WITCHCRAFT</p><h1>青月魔法使用手冊</h1><p>查詢青月巫作魔法產品的啟動方式、咒語、使用方式與搭配</p>
-    <form class="search" data-search><input name="q" type="search" placeholder="搜尋品名、女神、成分或關鍵字" autocomplete="off"><button>搜尋</button></form>
-    <div class="try">試試搜尋 ${['幸運', '黃金', '玫瑰'].map(k => `<a href="#search" data-q="${k}">${k}</a>`).join('')}</div></section>
-    <h2 class="sec">種類</h2><div class="kinds">${KIND_ORDER.map(k => `<a class="kind" href="#k-${k}"><b>${KINDS[k].name}</b><span>${KINDS[k].sub}</span></a>`).join('')}</div>
-    <h2 class="sec">你想查什麼？</h2><div class="topics">${TOPICS.map(([k, t, s]) => `<a class="topic" href="#t-${k}"><b>${t}</b><span>${s}</span></a>`).join('')}</div>
-    <div class="tools"><a class="tool" href="#check"><b>這樣用搭不搭？</b><span>放進手上的產品，看先用哪一個、要注意什麼</span></a><a class="tool" href="#recipes"><b>搭配秘方</b><span>老師推薦的組合用法</span></a><a class="tool qa" href="${QA_URL}" target="_blank" rel="noopener"><b>魔法產品答客問 ↗</b><span>更多常見問題（部落格，需要網路）</span></a></div>${typeof BUILD_TIME !== 'undefined' ? `<p class="stamp">資料更新：${BUILD_TIME}</p>` : ''}`;
+  const kw = keywords(), m = moonNow(), stale = new Date() > m.end;
+  const moonLine = stale ? '<em>月空資料需要更新，請查時間表</em>' : (m.cur ? `<em class="on">現在是月空時間</em><span>到 ${fmtD(m.cur[1])} 結束</span>` : `<em class="off">現在不是月空時間</em>${m.next ? `<span>下一次月空：${fmtRange(m.next[0], m.next[1])}</span>` : ''}`);
+  return `<section class="hero"><p class="eyebrow">青月巫作 · 魔法使用手冊</p><h1>手上的這瓶，怎麼用？</h1><p>找到產品，跟著步驟開始。</p>
+    <form class="search" data-search role="search"><input name="q" type="search" placeholder="輸入瓶身上的品名" autocomplete="off" aria-label="搜尋產品"><button>搜尋</button></form><div class="sug" id="hsug" role="status" aria-live="polite"></div>
+    ${kw.length ? `<div class="kw"><span>常用關鍵字</span>${kw.map(k => `<a href="#search" data-q="${k}">${k}</a>`).join('')}</div>` : ''}</section>
+    <div class="prio"><a class="ptool pair" href="#check"><i aria-hidden="true">＋</i><span><b>這樣用搭不搭？</b><span>選手上的產品，查搭配順序與注意事項。</span><small>開始搭配 ›</small></span></a>
+    <a class="ptool moon" href="#t-moon"><i aria-hidden="true">☾</i><span><b>月空時間</b>${moonLine}<small>查看時間表與適用規則 ›</small></span></a></div>
+    ${kindsBlock()}
+    <h2 class="sec">使用說明</h2><div class="rows">${GUIDES.map(([h, t, d]) => `<a href="${h}"><b>${t}</b><span>${d} ›</span></a>`).join('')}</div>
+    <p class="quiet"><a href="#t-storage">保存方式</a><a href="#t-ingr">成分查詢</a><a href="${QA_URL}" target="_blank" rel="noopener">魔法產品答客問 ↗</a></p>${contact()}${typeof BUILD_TIME !== 'undefined' ? `<p class="stamp">資料更新：${BUILD_TIME}</p>` : ''}`;
 }
 
 // ───────── 種類頁 ─────────
@@ -343,36 +384,47 @@ function viewKind(k) {
   else if (k === 'energy') groups = [['', ps]];
   else if (k === 'powder' || k === 'sachet' || k === 'candle') { const cs = [...new Set(ps.map(p => p.cat || '其他'))]; groups = cs.map(c => [c, ps.filter(p => (p.cat || '其他') === c)]); }
   else groups = [['', ps]];
-  return `<h1 class="ptitle">${K.name}</h1><p class="lead">${esc(K.sub)}</p>
-    <div class="common"><div class="lbl">這一類的共通用法</div>${ul(K.summary)}<a href="#t-activate" data-scroll="a-${k}">看完整步驟 ›</a></div>
+  const named = groups.filter(g => g[0] && g[1].length);
+  return `<div class="crumb">依種類找產品</div><h1 class="ptitle">${K.name}</h1><p class="lead">${esc(K.sub)}</p>
+    ${fold('這一類怎麼用？', ul(K.summary) + kindVids([k], ['activation', 'top', 'usage']) + `<a class="toollink" href="#t-activate" data-scroll="a-${k}">看完整步驟 ›</a>`)}
+    <h2>產品清單<small>${ps.length} 款・選擇瓶身上的品名，查看專屬說明</small></h2>
+    ${named.length > 1 ? chipsNav(named.map(g => ['g-' + g[0], g[0]])) : ''}
     ${groups.filter(g => g[1].length).map(([g, l]) => `${g ? `<h3 id="g-${esc(g)}">${esc(g)}</h3>` : ''}<div class="cards">${l.map(p => card(p.id)).join('')}</div>`).join('')}`;
 }
 
 // ───────── 主題頁（不必先選產品） ─────────
 function faq(key) {
-  return `<section class="topic-s" id="faq"><h2>常見問題</h2>${QA[key].map(([q, a]) => fold(q, `<p>${esc(a)}</p>`)).join('')}<a class="ext" href="${QA_URL}" target="_blank" rel="noopener">更多問題：魔法產品答客問<small>需要網路</small></a></section>`;
+  return `<section class="topic-s" id="faq"><h2>常見問題</h2>${QA[key].map(([q, a]) => fold(q, `<p>${esc(a)}</p>`)).join('')}<a class="ext" href="${QA_URL}" target="_blank" rel="noopener">更多問題：魔法產品答客問<small>需要網路</small></a>${contact()}</section>`;
 }
 function chipsNav(items) { return `<div class="chipnav">${items.map(([id, t]) => `<button data-scroll="${id}">${t}</button>`).join('')}</div>`; }
 function viewTopic(t) {
   if (t === 'activate') {
-    return `<h1 class="ptitle">啟動方式</h1><p class="lead">不同種類的開始方式不一樣。每一類都可以在步驟中選擇你手上的產品，直接查看那一款的觀想與咒語。</p>
-    ${chipsNav([...KIND_ORDER.map(k => ['a-' + k, KINDS[k].name]), ['faq', '常見問題']])}
-    <section class="topic-s" id="a-wish"><h2>願望型<small>第一次使用前施咒啟動一次</small></h2><div class="notice">請避開月空時間（豐盛生活、人緣和合另避開日／月食），並由使用者本人啟動。</div>${stepsWish(null, '油')}<p class="aside">噴霧的做法相同，只是取下的是噴頭。</p></section>
-    <section class="topic-s" id="a-energy"><h2>季節魔法配方<small>第一次使用前吹氣連結</small></h2>${stepsEnergy(null, '油')}</section>
-    <section class="topic-s" id="a-goddess"><h2>女神聖化系列<small>不須啟動，每次使用都這樣做</small></h2>${stepsGoddess(null, '油')}</section>
-    <section class="topic-s" id="a-star"><h2>星光行運<small>不須啟動，每次使用都這樣做</small></h2>${stepsStar(null)}</section>
-    <section class="topic-s" id="a-powder"><h2>魔法香粉<small>不須啟動，每次使用都這樣做</small></h2>${stepsPowder(null)}</section>
-    <section class="topic-s" id="a-sachet"><h2>魔法香包<small>不須啟動</small></h2><p>取出即可使用，已由專業巫師完成祝聖程序。</p></section>
-    <section class="topic-s" id="a-candle"><h2>魔法蠟燭<small>依各款說明</small></h2>${ul(KINDS.candle.summary)}</section>${faq('activate')}`;
+    const SEC = {
+      wish: `<section class="topic-s" id="a-wish"><h2>願望型<small>第一次使用前施咒啟動一次</small></h2>${kindVids(['wish'], ['activation', 'top'])}<div class="notice">請避開月空時間（豐盛生活、人緣和合另避開日／月食），並由使用者本人啟動。</div>${stepsWish(null, '油')}<p class="aside">噴霧的做法相同，只是取下的是噴頭。</p></section>`,
+      energy: `<section class="topic-s" id="a-energy"><h2>季節魔法配方<small>第一次使用前吹氣連結</small></h2>${kindVids(['energy'], ['activation', 'top'])}${stepsEnergy(null, '油')}</section>`,
+      goddess: `<section class="topic-s" id="a-goddess"><h2>女神聖化系列<small>不須啟動，每次使用都這樣做</small></h2>${kindVids(['goddess'], ['activation', 'top'])}${stepsGoddess(null, '油')}</section>`,
+      star: `<section class="topic-s" id="a-star"><h2>星光行運<small>不須啟動，每次使用都這樣做</small></h2>${kindVids(['star'], ['activation', 'top'])}${stepsStar(null)}</section>`,
+      powder: `<section class="topic-s" id="a-powder"><h2>魔法香粉<small>不須啟動，每次使用都這樣做</small></h2>${kindVids(['powder'], ['activation', 'top'])}${stepsPowder(null)}</section>`,
+      sachet: `<section class="topic-s" id="a-sachet"><h2>魔法香包<small>不須啟動</small></h2>${kindVids(['sachet'], ['activation', 'top'])}<p>取出即可使用，已由專業巫師完成祝聖程序。</p></section>`,
+      candle: `<section class="topic-s" id="a-candle"><h2>魔法蠟燭<small>依各款說明</small></h2>${kindVids(['candle'], ['activation', 'top'])}${ul(KINDS.candle.summary)}</section>`
+    };
+    const ak = KIND_ORDER.includes(state.akind) ? state.akind : 'wish';
+    return `<div class="crumb">使用說明・啟動方式</div><h1 class="ptitle">第一次，如何開始？</h1><p class="lead">先選種類，再在步驟中選你手上的產品，直接看那一款的觀想與咒語。</p>
+    <div class="filter" role="group" aria-label="選擇種類">${KIND_ORDER.map(k => `<button data-akind="${k}" class="${k === ak ? 'on' : ''}" aria-pressed="${k === ak}">${KINDS[k].name}</button>`).join('')}</div>
+    ${SEC[ak]}${faq('activate')}`;
   }
   if (t === 'usage') {
-    return `<h1 class="ptitle">使用方式</h1><p class="lead">依劑型查看共通用法。各款的專屬用法在產品頁。</p>
-    ${chipsNav([['u-oil', '魔法油'], ['u-spray', '魔法噴霧'], ['u-powder', '魔法香粉'], ['u-sachet', '魔法香包'], ['u-candle', '魔法蠟燭'], ['faq', '常見問題']])}
-    <section class="topic-s" id="u-oil"><h2>魔法油</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['油'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['油'][0])}</dd><dt>女神聖化</dt><dd>滴在需要之處，或滴入無香蠟燭中點燃；每次都呼喚女神、念祈禱文。</dd><dt>星光行運</dt><dd>滴在需要加持的地方或物品上，每次都觀想並念祈禱文。</dd></dl><p class="aside">請勿使用水氧機等擴香機器，可以水燈薰香。</p></section>
-    <section class="topic-s" id="u-spray"><h2>魔法噴霧</h2><dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['噴霧'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['噴霧'][0])}</dd><dt>女神聖化</dt><dd>噴灑在需要祝福的空間或區域周圍，再伸出雙掌迎接女神能量。</dd></dl><p class="aside">噴霧不可加入蠟燭；搭配蠟燭時先噴灑空間再點燭，不要對著火焰噴。</p></section>
-    <section class="topic-s" id="u-powder"><h2>魔法香粉</h2>${stepsPowder(null)}</section>
-    <section class="topic-s" id="u-sachet"><h2>魔法香包</h2>${ul(MODES.sachet.usage)}</section>
-    <section class="topic-s" id="u-candle"><h2>魔法蠟燭</h2>${ul([...KINDS.candle.summary.slice(0, 1), ...MODES.candle.notes])}${fold('殘蠟怎麼辦？', `<p>${esc(MODES.candle.tips[0].b)}</p>`)}</section>${faq('usage')}`;
+    const USEC = {
+      oil: `<section class="topic-s" id="u-oil"><h2>魔法油</h2>${kindVids(['wish', 'energy', 'goddess', 'star'], ['usage'], '油')}<dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['油'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['油'][0])}</dd><dt>女神聖化</dt><dd>滴在需要之處，或滴入無香蠟燭中點燃；每次都呼喚女神、念祈禱文。</dd><dt>星光行運</dt><dd>滴在需要加持的地方或物品上，每次都觀想並念祈禱文。</dd></dl><p class="aside">請勿使用水氧機等擴香機器，可以水燈薰香。</p></section>`,
+      spray: `<section class="topic-s" id="u-spray"><h2>魔法噴霧</h2>${kindVids(['wish', 'energy', 'goddess'], ['usage'], '噴霧')}<dl class="kv"><dt>願望型</dt><dd>${esc(GENERIC_USE.wish['噴霧'][0])}</dd><dt>季節魔法配方</dt><dd>${esc(GENERIC_USE.energy['噴霧'][0])}</dd><dt>女神聖化</dt><dd>噴灑在需要祝福的空間或區域周圍，再伸出雙掌迎接女神能量。</dd></dl><p class="aside">噴霧不可加入蠟燭；搭配蠟燭時先噴灑空間再點燭，不要對著火焰噴。</p></section>`,
+      powder: `<section class="topic-s" id="u-powder"><h2>魔法香粉</h2>${kindVids(['powder'], ['usage'])}${stepsPowder(null)}</section>`,
+      sachet: `<section class="topic-s" id="u-sachet"><h2>魔法香包</h2>${kindVids(['sachet'], ['usage'])}${ul(MODES.sachet.usage)}</section>`,
+      candle: `<section class="topic-s" id="u-candle"><h2>魔法蠟燭</h2>${kindVids(['candle'], ['usage'])}${ul([...KINDS.candle.summary.slice(0, 1), ...MODES.candle.notes])}${fold('殘蠟怎麼辦？', `<p>${esc(MODES.candle.tips[0].b)}</p>`)}</section>`
+    };
+    const uf = USEC[state.uform] ? state.uform : 'oil';
+    return `<div class="crumb">使用說明・使用方式</div><h1 class="ptitle">平常，怎麼使用？</h1><p class="lead">先選劑型，看共通用法。各款的專屬用法在產品頁。</p>
+    <div class="filter" role="group" aria-label="選擇劑型">${[['oil', '魔法油'], ['spray', '魔法噴霧'], ['powder', '魔法香粉'], ['sachet', '魔法香包'], ['candle', '魔法蠟燭']].map(([k, n]) => `<button data-uform="${k}" class="${k === uf ? 'on' : ''}" aria-pressed="${k === uf}">${n}</button>`).join('')}</div>
+    ${USEC[uf]}${faq('usage')}`;
   }
   if (t === 'order') {
     return `<h1 class="ptitle">使用順序</h1><p class="lead">只有一天當中第一次使用時要注意順序，之後補用不必。</p>
@@ -395,12 +447,14 @@ function viewTopic(t) {
       return `<li class="${live ? 'live' : ''}">${fmtRange(s0, e0)}${live ? '<em>進行中</em>' : ''}</li>`; }).join('');
     const ecl = ECLIPSES.filter(([, b]) => tp(b) > now);
     return `<h1 class="ptitle">月空時間</h1><p class="lead">月亮空亡期間少了月亮女神的支持，個人魔力會大幅減弱。啟動與許願請避開。</p>
-    <div class="calcard"><div class="lbl">青月巫作時程表 X 月相曆</div><b>月空時間、新滿月，還有每一檔的開單、結單時間都在這裡</b><p>加入你的行事曆，手機會自動提醒，不會錯過任何一檔！</p>
-      <a class="calbtn" href="${CAL_ADD}" target="_blank" rel="noopener">加入我的 Google 日曆</a>
-      <a class="calbtn ghost" href="${CAL_URL}" target="_blank" rel="noopener">打開線上月相曆</a>
-      <button class="calbtn ghost" data-copy="${ICAL_URL}">複製 iCal 網址（iPhone 行事曆可訂閱）</button><span class="copied" hidden>已複製</span>
-      <small>需要網路</small></div>
     ${moonStatus()}
+    <h2>青月巫作時程表 X 月相曆<small>月空時間、新滿月，還有每一檔的開單、結單時間</small></h2>
+    <div class="calembed">${navigator.onLine === false ? `<div class="caloff"><p>目前沒有網路，月相曆要連線才看得到。下方的離線版月空時間表仍可使用。</p><button class="calbtn" data-recal>重新載入月相曆</button></div>` : `<iframe src="${calEmbed()}" title="青月巫作時程表 X 月相曆" loading="lazy"></iframe>`}</div>
+    <div class="calcard"><p>加入你的行事曆，手機會自動提醒，不會錯過任何一檔！</p>
+      <a class="calbtn" href="${CAL_ADD}" target="_blank" rel="noopener">加入我的 Google 日曆</a>
+      <button class="calbtn ghost" data-copy="${ICAL_URL}">複製 iCal 網址（iPhone 行事曆可訂閱）</button><span class="copied" hidden>已複製</span>
+      <a class="calbtn ghost" href="${CAL_URL}" target="_blank" rel="noopener">月相曆顯示不出來？在新視窗打開</a>
+      <small>需要網路</small></div>
     <div class="two"><div class="no"><div class="lbl">月空時請避開</div>${ul(['願望型魔法油／噴霧的啟動', '季節魔法配方的吹氣連結', '蠟燭魔法許願、魔法蠟燭的許願或第一次施咒', '新月、滿月儀式等有目的的施術'])}</div>
     <div class="yes"><div class="lbl">月空時也可以</div>${ul(['已啟動產品的日常使用', '女神聖化系列、星光行運', '魔法香粉、魔法香包', '單純點燃蠟燭、滴入魔法油釋放能量（不許願）'])}</div></div>
     <h2>離線版月空時間表<small>不需要網路；以台灣時間（UTC+8）顯示，香港、澳門、馬來西亞、中國相同</small></h2><div class="chipnav">${months.map(m => `<button data-mon="${m}" class="${m === sel ? 'on' : ''}">${+m.slice(0, 4) !== pn.y ? m.slice(0, 4) + '/' : ''}${+m.slice(5)} 月</button>`).join('')}</div>
@@ -412,7 +466,7 @@ function viewTopic(t) {
     ${fold('為什麼魔法香粉月空時可以用？', '<p>香粉製作時已由女巫團隊透過儀式祝福，本身就帶有魔力；使用時唸的一句咒語代表你的祈求與連結，並不是由你灌入魔力。魔法油與噴霧的啟動需要你的魔力灌注，所以要避開月空。</p>')}
     ${fold('月空時可以點蠟燭嗎？', '<p>單純點燃、或滴入魔法油釋放能量，可以；要許願或第一次施咒，請等月空結束後再進行。</p>')}
     <a class="ext" href="${QA_URL}" target="_blank" rel="noopener">更多問題：魔法產品答客問<small>需要網路</small></a>
-    <p class="aside">離線版月空時間表收錄到 ${VOC[VOC.length - 1][0].slice(0, 4)} 年底，以青月巫作時程表為準。</p>`;
+    <p class="aside">離線版月空時間表收錄到 ${VOC[VOC.length - 1][0].slice(0, 4)} 年底，以青月巫作時程表為準。</p>${contact()}`;
   }
   if (t === 'storage') {
     const rows = [['魔法油・噴霧', MODES.wish.storage, MODES.wish.expiry], ['魔法香粉', SERIES['魔法香粉'].storage, SERIES['魔法香粉'].expiry], ['魔法香包', MODES.sachet.storage, MODES.sachet.expiry], ['魔法蠟燭', MODES.candle.storage, MODES.candle.expiry]];
@@ -533,29 +587,44 @@ function viewRecipe(id) {
 
 // ───────── 搜尋 ─────────
 const TOPIC_WORDS = { activate: '啟動 施咒 吹氣 咒語 常見問題 答客問', usage: '使用方式 怎麼用 用法', order: '順序 先後 搭配 一起用 24小時 間隔', moon: '月空 日食 月食', storage: '保存 期限 過期 沉澱', ingr: '成分 配方' };
-function viewSearch() {
-  const k = state.q.trim().toLowerCase();
-  const hits = k ? PRODUCTS.filter(p => [p.name, p.en, p.series, p.cat, p.group, p.oneLine, JSON.stringify(p.ingredients || ''), JSON.stringify(p.years || '')].join(' ').toLowerCase().includes(k)) : [];
-  const topics = k ? TOPICS.filter(([id, t]) => (t + TOPIC_WORDS[id]).includes(k)) : [];
-  const rs = k ? RECIPES.filter(r => JSON.stringify(r).toLowerCase().includes(k)) : [];
-  const kinds = k ? KIND_ORDER.filter(x => KINDS[x].name.includes(k)) : [];
-  return `<form class="search inline" data-search><input name="q" type="search" value="${esc(state.q)}" placeholder="搜尋品名、女神、成分或關鍵字"><button>搜尋</button></form>
-    ${k ? `<p class="lead">「${esc(state.q)}」的結果</p>` : ''}
-    ${kinds.concat().map(x => `<a class="card" href="#k-${x}"><span class="card-name">${KINDS[x].name}</span><span class="card-sub">種類</span></a>`).join('')}
+// 搜尋只比對品名（中文、英文）。說明內文、成分不列入，結果才不會雜；成分請用「成分查詢」。
+function searchFind(q) {
+  const k = q.trim().toLowerCase(); if (!k) return { k, hits: [], topics: [] };
+  const hits = PRODUCTS.filter(p => (p.name + ' ' + (p.en || '')).toLowerCase().includes(k));
+  return { k, hits, topics: TOPICS.filter(([id, t]) => (t + TOPIC_WORDS[id]).includes(k)) };
+}
+function searchCount() {
+  const { k, hits, topics } = searchFind(state.q);
+  if (!k) return '輸入瓶身上品名的一兩個字就可以。';
+  return hits.length ? `品名有「${state.q.trim()}」的產品：${hits.length} 項` : topics.length ? `沒有品名含「${state.q.trim()}」的產品，相關說明如下。` : `沒有品名含「${state.q.trim()}」的產品。`;
+}
+function searchResults() {
+  const { k, hits, topics } = searchFind(state.q), q = state.q.trim();
+  return `<div class="cards">${hits.map(p => card(p.id)).join('')}</div>
     ${topics.map(([id, t, s]) => `<a class="card" href="#t-${id}"><span class="card-name">${t}</span><span class="card-sub">${s}</span></a>`).join('')}
-    <div class="cards">${hits.map(p => card(p.id)).join('')}</div>
-    ${rs.length ? '<h3>搭配秘方</h3>' + rs.map(r => `<a class="card" href="#${r.id}"><span class="card-name">${esc(r.name)}</span><span class="card-sub">${r.products.map(x => byId[x]?.name).join('＋')}</span></a>`).join('') : ''}
-    ${k && !hits.length && !topics.length && !rs.length && !kinds.length ? '<p class="aside">找不到相符的項目，換個關鍵字試試。</p>' : ''}`;
+    ${k && !hits.length ? `<p class="aside">請確認瓶身上的品名，或從下方依種類找。要查成分，請到<a href="#t-ingr" data-ing="${esc(q)}">成分查詢找「${esc(q)}」</a>。</p>` : ''}`;
+}
+function viewSearch() {
+  return `<form class="search inline" data-search role="search"><input name="q" type="search" value="${esc(state.q)}" placeholder="輸入瓶身上的品名" autocomplete="off" aria-label="搜尋產品"><button>搜尋</button></form><p class="lead" id="scount" role="status" aria-live="polite">${esc(searchCount())}</p><div id="sres">${searchResults()}</div>${kindsBlock()}`;
+}
+function viewVideos() {
+  return `<h1 class="ptitle">影片示範</h1><p class="lead">影片在本頁播放，需要網路。每一款的文字步驟、觀想與咒語都在產品頁。</p>` +
+    (KIND_ORDER.map(k => { const l = ALL_VIDS.filter(v => v.kind === k); return l.length ? `<h3>${KINDS[k].name}</h3>${l.map(v => video(v) + (v.share ? '' : `<a class="toollink" href="#p-${v.from}">到${esc(byId[v.from].name)}的產品頁 ›</a>`)).join('')}` : ''; }).join('') || pendingBox('影片陸續上架中。'));
 }
 
 // ───────── 導覽：上一頁、首頁、選單 ─────────
 function drawer() {
   return `<form class="search inline" data-search><input name="q" type="search" placeholder="搜尋"><button>搜尋</button></form>
     <div class="dl">種類</div>${KIND_ORDER.map(k => `<a href="#k-${k}">${KINDS[k].name}</a>`).join('')}
-    <div class="dl">你想查什麼？</div>${TOPICS.map(([k, t]) => `<a href="#t-${k}">${t}</a>`).join('')}
+    <div class="dl">你想查什麼？</div>${TOPICS.map(([k, t]) => `<a href="#t-${k}">${t}</a>`).join('')}${ALL_VIDS.length ? '<a href="#videos">影片示範</a>' : ''}
     <div class="dl">工具</div><a href="#check">這樣用搭不搭？</a><a href="#recipes">搭配秘方</a><a href="${QA_URL}" target="_blank" rel="noopener">魔法產品答客問 ↗</a>`;
 }
 let depth = 0, pendingScroll = null;
+function setDrawer(open, refocus) {
+  const d = $('#drawer'), m = $('#menu'); if (d.classList.contains('open') === open) return;
+  d.classList.toggle('open', open); d.inert = !open; m.setAttribute('aria-expanded', String(open));
+  if (open) { const a = d.querySelector('a'); if (a) a.focus(); } else if (refocus) m.focus();
+}
 function render() {
   const h = decodeURIComponent(location.hash.slice(1));
   let html;
@@ -567,10 +636,11 @@ function render() {
   else if (h === 'recipes') html = viewRecipes();
   else if (h.startsWith('r-')) html = viewRecipe(h);
   else if (h === 'search') html = viewSearch();
+  else if (h === 'videos') html = viewVideos();
   else html = viewHome();
   $('#main').innerHTML = html;
   $('#back').hidden = !h;
-  $('#drawer').classList.remove('open');
+  setDrawer(false);
   if (pendingScroll) { const el = document.getElementById(pendingScroll); pendingScroll = null; if (el) { el.scrollIntoView(); return; } }
   window.scrollTo(0, 0);
 }
@@ -579,7 +649,18 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button,a'); if (!t) return;
   const hash = decodeURIComponent(location.hash.slice(1)), pid = hash.startsWith('p-') ? hash.slice(2) : null;
   if (t.id === 'back') { if (depth > 0) history.back(); else location.hash = ''; return; }
-  if (t.id === 'menu') { $('#drawer').classList.toggle('open'); return; }
+  if (t.id === 'menu') { setDrawer(!$('#drawer').classList.contains('open')); return; }
+  if (t.dataset.play) {   // 點了才載入播放器，留在原位置播放
+    const card = t.closest('.vcard'), note = card.querySelector('.voff');
+    if (navigator.onLine === false) { if (!note) card.insertAdjacentHTML('beforeend', '<div class="vnote voff" role="status">目前沒有網路，連線後再按一次播放。文字步驟不受影響。</div>'); return; }
+    if (note) note.remove();
+    const f = document.createElement('div'); f.className = 'vframe';
+    f.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(t.dataset.play)}?autoplay=1&playsinline=1&rel=0" title="${esc(t.dataset.title)}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    t.replaceWith(f); card.querySelector('.vbot span').textContent = '播放不了？'; return;
+  }
+  if (t.dataset.recal !== undefined) { rerender(); return; }
+  if (t.dataset.akind) { state.akind = t.dataset.akind; rerender(); return; }
+  if (t.dataset.uform) { state.uform = t.dataset.uform; rerender(); return; }
   if (t.dataset.form && pid) { state.form[pid] = t.dataset.form; rerender(); }
   else if (t.dataset.year && pid) { state.year[pid] = t.dataset.year; rerender(); }
   else if (t.dataset.tab && pid) { state.tab[pid] = t.dataset.tab; render(); document.querySelector('.tabs').scrollIntoView({ block: 'start' }); }
@@ -595,15 +676,33 @@ document.addEventListener('click', e => {
   if (t.dataset.addcheck) { const id = t.dataset.addcheck; if (!state.picks.some(x => x.id === id)) state.picks.push({ id, form: state.form[id] || byId[id].forms[0] }); }
   if (t.dataset.scroll) {
     if (t.tagName === 'BUTTON') { const el = document.getElementById(t.dataset.scroll); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
-    else pendingScroll = t.dataset.scroll;
+    else { pendingScroll = t.dataset.scroll; if (/^a-/.test(pendingScroll)) state.akind = pendingScroll.slice(2); }
   }
 });
 document.addEventListener('change', e => { if (e.target.id === 'ingsel') { if (e.target.value) { state.ing = e.target.value; render(); } return; } if (e.target.classList.contains('lk-sel')) { const box = e.target.closest('.lookup'); box.querySelector('.lk-out').innerHTML = e.target.value ? lookupResult(e.target.value) : ''; return; } if (e.target.id === 'rprod') { state.rprod = e.target.value; rerender(); return; } if (e.target.id === 'addpick' && e.target.value) { const id = e.target.value; state.picks.push({ id, form: byId[id].forms[0] }); rerender(); } });
+// 即時搜尋：中文組字還沒完成時不更新，避免打斷輸入
+let composing = false;
+function liveSearch(inp) {
+  const f = inp.closest && inp.closest('form[data-search]'); if (!f) return;
+  const res = $('#sres'), sug = $('#hsug');
+  if (res && f.closest('main') && !f.closest('.hero')) { state.q = inp.value; res.innerHTML = searchResults(); $('#scount').textContent = searchCount(); }
+  else if (sug && f.closest('.hero')) {
+    const q = inp.value.trim(), { k, hits } = searchFind(q), top = hits.slice(0, 6);
+    sug.innerHTML = !k ? '' : !hits.length ? `<span>沒有品名含「${esc(q)}」的產品，請確認瓶身上的品名</span>`
+      : top.map(p => `<a href="#p-${p.id}">${esc(p.name)}</a>`).join('') + (hits.length > top.length ? `<a class="more" href="#search" data-q="${esc(q)}">全部 ${hits.length} 項 ›</a>` : '');
+  }
+}
+document.addEventListener('compositionstart', () => { composing = true; });
+document.addEventListener('compositionend', e => { composing = false; liveSearch(e.target); });
+document.addEventListener('input', e => { if (!composing && !e.isComposing) liveSearch(e.target); });
+document.addEventListener('click', e => { if (!e.target.closest('#drawer,#menu')) setDrawer(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setDrawer(false, true); });
 document.addEventListener('submit', e => {
   const f = e.target; e.preventDefault();
   if (f.dataset.search !== undefined) { state.q = f.q.value; if (location.hash === '#search') render(); else location.hash = 'search'; }
   if (f.dataset.ing !== undefined) { state.ing = f.q.value; render(); }
 });
+window.addEventListener('online', () => { if (location.hash === '#t-moon' && document.querySelector('.caloff')) rerender(); });
 window.addEventListener('hashchange', () => { depth++; render(); });
 window.addEventListener('popstate', () => { depth = Math.max(0, depth - 2); });
 render();

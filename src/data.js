@@ -188,7 +188,7 @@ const PRODUCTS = [
     tips: [{ t: '隱藏技能', b: '上油漆時在油漆中加入大地之財魔法油，讓整桶油漆都漆出豐盛能量。上班第一件事，先用噴霧把空間噴得香氣綻放，整天好心情。' }],
     ingredients: { '油': '基底：有機橄欖油｜精油：廣藿香、絲柏、杜松、香蜂草、沒藥｜浸泡油：光玉髓｜魔法添加物：香蜂草、橄欖石',
                    '噴霧': '基底：藥用酒精、香蜂草純露｜精油：廣藿香、絲柏、杜松、香蜂草、沒藥｜浸泡精華液：光玉髓（礦泉水浸泡）｜魔法添加物：香蜂草、橄欖石' },
-    videos: [{ yt: 'o8Ehp1wOYLw', title: '如何啟動願望型魔法油（以大地之財為例）', at: 'activation' }, { yt: '_aNg-zQSZRM', title: '這樣用完大地之財', at: 'usage' }] },
+    videos: [{ yt: 'o8Ehp1wOYLw', title: '如何啟動願望型魔法油（以大地之財為例）', at: 'activation', share: true, forms: ['油'] }, { yt: '_aNg-zQSZRM', title: '這樣用完大地之財', at: 'usage', forms: ['油'] }] },
   { id: 'hotmoney', name: '熱錢回來', en: 'Hot Money Back', series: '豐盛生活', forms: ['油', '噴霧'],
     oneLine: '加速金錢能量的流動，把花出去的金錢能量帶回身邊，創造更大更快的財富之流。',
     recommend: '創業者／兼職者／打工族／接案者',

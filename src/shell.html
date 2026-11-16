@@ -13,7 +13,7 @@
 <title>青月魔法使用手冊</title>
 <link rel="icon" href="{{favicon}}">
 <style>
-:root{--ink:#1f2a45;--ink2:#46506a;--muted:#737a8e;--paper:#f8f6f0;--card:#fffefa;--line:#e5e1d6;--gold:#a8853f;--gold-l:#f1e9d6;--sage:#edf0e8;--ok:#2f7a55;--ok-l:#e7f2eb;--warn:#a5651b;--warn-l:#fbf0dd;--no:#a33a3a;--no-l:#f8e6e6;--info:#36598f;--info-l:#e8eef8;
+:root{--ink:#1f2a45;--ink2:#46506a;--muted:#666d80;--paper:#f8f6f0;--card:#fffefa;--line:#e5e1d6;--gold:#a8853f;--gold-l:#f1e9d6;--sage:#edf0e8;--ok:#2f7a55;--ok-l:#e7f2eb;--warn:#a5651b;--warn-l:#fbf0dd;--no:#a33a3a;--no-l:#f8e6e6;--info:#36598f;--info-l:#e8eef8;
 --serif:"Noto Serif TC","Source Han Serif TC","Songti TC","PMingLiU",serif;--sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
 *{box-sizing:border-box}:root{color-scheme:light}
 input,select,textarea{color:var(--ink);-webkit-text-fill-color:var(--ink)}
@@ -26,8 +26,8 @@ a{color:var(--info)}button{font:inherit;cursor:pointer}
 .bar .brand{flex:1;display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-family:var(--serif);font-weight:700;letter-spacing:.06em;min-width:0}
 .bar .moon{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff7e0 0 40%,#d8c08a 70%);box-shadow:0 0 10px #e9d9a8;flex:none}
 #back[hidden]{display:block;visibility:hidden}
-#drawer{position:fixed;top:56px;right:0;bottom:0;width:min(320px,86vw);background:var(--card);border-left:1px solid var(--line);box-shadow:-8px 0 24px #0002;z-index:9;padding:14px 16px 40px;overflow:auto;transform:translateX(105%);transition:transform .2s}
-#drawer.open{transform:none}
+#drawer{visibility:hidden;position:fixed;top:56px;right:0;bottom:0;width:min(320px,86vw);background:var(--card);border-left:1px solid var(--line);box-shadow:-8px 0 24px #0002;z-index:9;padding:14px 16px 40px;overflow:auto;transform:translateX(105%);transition:transform .2s,visibility 0s .2s}
+#drawer.open{transform:none;visibility:visible;transition:transform .2s,visibility 0s}
 #drawer a{display:block;padding:9px 6px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
 #drawer .dl{font-size:12px;color:var(--gold);letter-spacing:.1em;margin:16px 0 2px;font-weight:700}
 main{max-width:760px;margin:0 auto;padding:16px 16px 72px}
@@ -48,7 +48,7 @@ h3{font-size:16px;margin:22px 0 8px;color:var(--ink2)}
 .search input:focus{outline:none}
 .search button{border:0;background:var(--gold-l);color:var(--ink);border-radius:10px;padding:6px 16px;font-weight:700}
 .search.inline{border:1px solid var(--line);margin:4px 0 12px}
-.try{font-size:13px;color:#cfd6ea;margin-top:12px}.try a{color:#fff;margin-left:12px;text-decoration:none;border-bottom:1px solid #d9c48f}
+.try{font-size:13px;color:#cfd6ea;margin-top:12px}.try a{color:#fff;text-decoration:none}
 main>.try{color:var(--muted)}main>.try a{color:var(--ink)}
 .sec{font-size:18px;margin:26px 0 12px}
 .kinds,.topics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -216,11 +216,76 @@ select{width:100%;padding:12px;border-radius:12px;border:1px dashed var(--muted)
 .yrrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}.yrrow .seg.yr{margin:0}.yrform{font-size:14px;color:var(--gold);font-weight:600}
 .stamp{text-align:center;color:var(--muted);font-size:12px;margin:18px 0 0}
 .facts{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:14px;line-height:1.55}.facts dt{color:var(--gold);font-weight:600;white-space:nowrap}.facts dd{margin:0;color:var(--ink,#333)}
+
+/* 影片：點了才在原位置載入播放器 */
+.vcard{border:1px solid var(--line);background:var(--card);border-radius:14px;overflow:hidden;margin:12px 0 16px}
+.vplay{display:flex;gap:12px;align-items:center;text-align:left;width:100%;background:none;border:0;padding:10px;color:var(--ink)}
+.vth{position:relative;flex:none;width:112px;aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#1f2a45,#46506a)}
+.vth img{width:100%;height:100%;object-fit:cover;display:block}
+.vth i{position:absolute;inset:0;margin:auto;width:34px;height:34px;border-radius:50%;background:#1f2a45cc;border:1px solid #ffffff99}
+.vth i::after{content:"";position:absolute;left:13px;top:9px;border:7px solid transparent;border-left:11px solid #fff;border-right:0}
+.vtx{display:flex;flex-direction:column;min-width:0}.vtx b{font-size:15px;line-height:1.5}.vtx span{font-size:13px;color:var(--ink2);line-height:1.5}.vtx small{font-size:12px;color:var(--muted)}
+.vframe{aspect-ratio:16/9;background:#192234}.vframe iframe{width:100%;height:100%;border:0;display:block}
+.vbot{display:flex;justify-content:space-between;gap:10px;padding:6px 12px 8px;font-size:12px;color:var(--muted)}.vbot a{text-decoration:none}
+.vnote{background:var(--sage);color:#55604d;padding:8px 12px;font-size:12px}.vnote.voff{background:var(--warn-l);color:#6b4612}
+@media(max-width:340px){.vth{width:88px}}
+/* 搜尋建議、可點提示 */
+.search:focus-within{box-shadow:0 0 0 2px #d9c48f}
+.sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.sug:empty{display:none}
+.sug a{background:#fff;color:var(--ink);border-radius:999px;padding:4px 14px;text-decoration:none;font-size:15px}
+.sug a.more{background:transparent;color:#fff;border:1px solid #ffffff66}.sug span{font-size:13px;color:#cfd6ea}
+main>.try a{border-color:var(--line);background:var(--card)}
+.card::after{content:"›";color:var(--gold);font-size:18px;line-height:1;flex:none}
+.card-name{flex:1;min-width:0}
+h3[id]{scroll-margin-top:112px}
+/* 首頁 v2：搜尋 → 常用關鍵字 → 搭不搭／月空 → 種類 → 使用說明 */
+.hero{border-radius:18px;padding:22px 18px 18px;margin:4px 0 14px}
+.hero h1{font-size:25px;letter-spacing:.02em}.hero .eyebrow{letter-spacing:.1em}
+.kw{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:13px}.kw span{font-size:12px;color:#d0d7e5}
+.kw a{border:1px solid #ffffff58;background:#ffffff0b;color:#fffefa;border-radius:999px;padding:4px 13px;font-size:14px;text-decoration:none;min-height:34px;display:inline-flex;align-items:center}
+.kw a:hover,.kw a:focus-visible{background:var(--gold-l);color:var(--ink)}
+@media(pointer:coarse){.kw a{min-height:44px;padding:4px 15px}}
+.sug span{flex-basis:100%}
+.prio{display:grid;gap:12px;margin:0 0 6px}
+.ptool{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:14px;text-decoration:none;color:var(--ink);border:1px solid #d8c69a;background:var(--gold-l)}
+.ptool.moon{background:var(--sage);border-color:#d3dbcc}
+.ptool i{font:400 28px/1.25 Georgia,serif;font-style:normal;width:30px;flex:none;text-align:center;color:#826630}.ptool.moon i{color:#50664f}
+.ptool>span{display:flex;flex-direction:column;min-width:0}
+.ptool b{font-size:19px;line-height:1.5;font-family:var(--serif)}.ptool span span{font-size:13px;color:var(--ink2);line-height:1.6}
+.ptool em{font-style:normal;font-size:15px;font-weight:700;align-self:flex-start;border-radius:8px;padding:1px 10px;margin:4px 0 2px;background:#fff;color:var(--ink)}
+.ptool em.off{background:var(--ok-l);color:#1f4d36;border:1px solid #bfdccb}.ptool em.on{background:var(--no);color:#fff}
+.ptool em+span{font-variant-numeric:tabular-nums}
+.ptool small{font-size:13px;font-weight:700;color:#725b2d;margin-top:4px}.ptool.moon small{color:#466044}
+.ptool:focus-visible,.kind:focus-visible,.rows a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h2.sec small{font-family:var(--sans);font-weight:400;font-size:13px;color:var(--muted)}
+.rows a{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:13px 2px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.rows span{font-size:13px;color:var(--muted);text-align:right}
+.quiet{display:flex;flex-wrap:wrap;gap:6px 18px;margin:18px 0 0;font-size:14px}.quiet a{color:var(--ink2);text-decoration:none;padding:6px 0}
+/* 產品頁頭、篩選鈕 */
+.formrow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0 2px;font-size:14px;color:var(--ink2)}.formrow .seg{margin:0}
+.filter{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.filter button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-size:14px;color:var(--ink2)}
+.filter button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pane .oneline:first-of-type{margin-top:4px}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+main{overflow-wrap:anywhere}
+.ing dt,.facts dt{white-space:normal;max-width:9.5em}
+/* 月相曆嵌入、還是有問題 */
+.calembed{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;margin:8px 0 12px}
+.calembed iframe{display:block;width:100%;height:480px;border:0}
+@media(min-width:620px){.calembed iframe{height:600px}}
+.caloff{padding:16px;background:var(--card)}.caloff p{margin:0 0 10px;color:var(--ink2);font-size:15px}
+.calcard>p{color:#d5dbec}
+.ask{margin:26px 0 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--card);display:grid;gap:8px}
+.ask b{font-family:var(--serif);font-size:18px}
+.ask a,.ask .todo{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;padding:10px 14px;text-decoration:none;color:var(--ink);background:var(--paper)}
+.ask a span{font-weight:700}.ask small{color:var(--muted);font-size:13px}.ask .todo{border-style:dashed;color:var(--muted)}
+#faq .ask{margin-top:14px}
 </style>
 </head>
 <body>
-<header class="bar"><button id="back" aria-label="上一頁">←</button><a class="brand" href="#" aria-label="青月巫作 魔法使用手冊 首頁"><img class="b-deer" src="{{deer_white}}" alt=""><img class="b-word" src="{{word_white}}" alt="青月巫作"><span class="b-sub">魔法使用手冊</span></a><button id="menu" aria-label="選單">☰</button></header>
-<nav id="drawer" aria-label="選單"></nav>
+<header class="bar"><button id="back" aria-label="上一頁">←</button><a class="brand" href="#" aria-label="青月巫作 魔法使用手冊 首頁"><img class="b-deer" src="{{deer_white}}" alt=""><img class="b-word" src="{{word_white}}" alt="青月巫作"><span class="b-sub">魔法使用手冊</span></a><button id="menu" aria-label="選單" aria-expanded="false" aria-controls="drawer">☰</button></header>
+<nav id="drawer" aria-label="選單" inert></nav>
 <main id="main"></main>
 <script>
 const BRAND = { deer: "{{deer_teal}}", word: "{{word_dark}}" };
